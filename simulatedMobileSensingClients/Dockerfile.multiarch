@@ -1,0 +1,25 @@
+# Multi-arch image of the simulated mobile sensing client (linux/amd64, linux/arm64).
+# Build context = repository root (needs crowdDensityLibrary and simulatedMobileSensingClients).
+#
+#   docker buildx build --platform linux/amd64,linux/arm64 \
+#     -f simulatedMobileSensingClients/Dockerfile.multiarch -t <image> .
+#
+# The Gradle build runs once on the build platform (bytecode is platform independent; the
+# H3 jar ships native libraries for x86_64 and aarch64). Only the JRE base image differs per platform.
+
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+WORKDIR /src
+COPY crowdDensityLibrary crowdDensityLibrary
+COPY simulatedMobileSensingClients simulatedMobileSensingClients
+# Strip CRLF in case the repository was checked out on Windows
+RUN sed -i 's/\r$//' crowdDensityLibrary/gradlew simulatedMobileSensingClients/gradlew \
+ && chmod +x crowdDensityLibrary/gradlew simulatedMobileSensingClients/gradlew
+# Library into the local Maven repository (crowdDensityLibrary:lib:0.1), then the client
+RUN cd crowdDensityLibrary && ./gradlew --no-daemon :lib:publishToMavenLocal -x test
+RUN cd simulatedMobileSensingClients && ./gradlew --no-daemon bootJar -x test \
+ && cp build/libs/simulatedMobileSensingClients-*-SNAPSHOT.jar /app.jar
+
+FROM eclipse-temurin:21-jre
+LABEL org.opencontainers.image.description="Simulated mobile sensing client (crowd-monitoring-mcs)"
+COPY --from=build /app.jar /app.jar
+ENTRYPOINT ["java", "-jar", "/app.jar"]

@@ -1,0 +1,25 @@
+# Multi-arch image of the MCS server (linux/amd64, linux/arm64).
+# Build context = repository root (needs crowdDensityLibrary and server).
+#
+#   docker buildx build --platform linux/amd64,linux/arm64 \
+#     -f server/Dockerfile.multiarch -t <image> .
+#
+# The Gradle build runs once on the build platform (bytecode is platform independent; the
+# H3 jar ships native libraries for x86_64 and aarch64). Only the JRE base image differs per platform.
+
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+WORKDIR /src
+COPY crowdDensityLibrary crowdDensityLibrary
+COPY server server
+# Strip CRLF in case the repository was checked out on Windows
+RUN sed -i 's/\r$//' crowdDensityLibrary/gradlew server/gradlew \
+ && chmod +x crowdDensityLibrary/gradlew server/gradlew
+# Library into the local Maven repository (crowdDensityLibrary:lib:0.1), then the server
+RUN cd crowdDensityLibrary && ./gradlew --no-daemon :lib:publishToMavenLocal -x test
+RUN cd server && ./gradlew --no-daemon bootJar -x test \
+ && cp build/libs/server-*-SNAPSHOT.jar /app.jar
+
+FROM eclipse-temurin:21-jre
+LABEL org.opencontainers.image.description="MCS server (crowd-monitoring-mcs)"
+COPY --from=build /app.jar /app.jar
+ENTRYPOINT ["java", "-jar", "/app.jar"]
