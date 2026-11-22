@@ -92,7 +92,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.play.services.location)
     // Library for determination of crowd density
-    api("crowdDensityLibrary:lib:0.1")
+    api("crowdDensityLibrary:lib:0.2")
     // Sources: https://h3geo.org/docs/api/indexing,
     // https://mvnrepository.com/artifact/com.uber/h3-android,
     // https://github.com/isaacbrodsky/h3-android-sample

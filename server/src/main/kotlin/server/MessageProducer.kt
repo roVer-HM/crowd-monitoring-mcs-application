@@ -2,12 +2,11 @@ package server
 
 import crowdDensityLibrary.LocalAggregatedMeasurementMap
 import crowdDensityLibrary.MeasurementMap
+import crowdDensityLibrary.evaluation.NtpClock
 import crowdDensityLibrary.serializer.MeasurementMapSerializer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.apache.commons.net.ntp.NTPUDPClient
-import org.apache.commons.net.ntp.TimeInfo
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.amqp.core.Message
@@ -15,7 +14,6 @@ import org.springframework.amqp.core.MessageProperties
 import org.springframework.amqp.rabbit.core.RabbitTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
-import java.net.InetAddress
 import kotlin.random.Random
 
 // Checked (final)
@@ -47,7 +45,7 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
     public fun generateAndSendLamm() {
         coroutineScopeGenerateAndSendLamm.launch {
             val timestampLammAndMessageGenerationsStarts: Long =
-                getTimestampIncludingNtpOffset(ServerApplication.ntpSource)
+                NtpClock.currentTimeMillis()
 
             // Remove exceeded entries from all the FAMMs (additional step)
             ServerApplication.measurementManager.removeExceededBeaconsAndMeasurements()
@@ -78,7 +76,7 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
             val message: Message = Message(serializedLammToJson.toByteArray(), messageProperties)
 
             val timestampLammAndMessageGenerationsEnds: Long =
-                getTimestampIncludingNtpOffset(ServerApplication.ntpSource)
+                NtpClock.currentTimeMillis()
 
             rabbitTemplate.convertAndSend(
                 "rabbit-mq-exchange-global-density-data", null,
@@ -86,7 +84,7 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
             )
 
             val timestampAfterGlobalDensityDataMessageSent: Long =
-                getTimestampIncludingNtpOffset(ServerApplication.ntpSource)
+                NtpClock.currentTimeMillis()
             val timeToGenerateLammAndMessage: Long =
                 timestampLammAndMessageGenerationsEnds - timestampLammAndMessageGenerationsStarts
 
@@ -104,22 +102,5 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
 //                    "containing the LAMM: ${Json { prettyPrint = true }.parseToJsonElement(serializedLammToJson)}"
 //            )
         }
-    }
-
-    // Checked (final)
-    /**
-     * Returns an accurate timestamp according to the time provided by a NTP server.
-     * @param timeSource Address of the NTP server to use for obtaining accurate time.
-     */
-    private fun getTimestampIncludingNtpOffset(timeSource: String): Long {
-        val ntpClient: NTPUDPClient = NTPUDPClient()
-        ntpClient.open()
-
-        val timeInfo: TimeInfo = ntpClient.getTime(InetAddress.getByName(timeSource))
-        timeInfo.computeDetails()
-        val timestampIncludingNtpOffset: Long = System.currentTimeMillis() + timeInfo.offset
-
-        ntpClient.close()
-        return timestampIncludingNtpOffset
     }
 }

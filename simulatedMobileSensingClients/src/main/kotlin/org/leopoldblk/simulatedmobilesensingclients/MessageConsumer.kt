@@ -2,6 +2,7 @@ package org.leopoldblk.simulatedmobilesensingclients
 
 import crowdDensityLibrary.ForeignAggregatedMeasurementMap
 import crowdDensityLibrary.MeasurementMap
+import crowdDensityLibrary.evaluation.NtpClock
 import crowdDensityLibrary.serializer.MeasurementMapSerializer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,19 @@ import org.springframework.stereotype.Service
 @Service
 class MessageConsumer(private val globalDensityDataQueue: Queue) {
     private val logger: Logger = LoggerFactory.getLogger("RabbitMqMessageConsumer")
+    private val loggerScalabilityAnalysis: Logger =
+        LoggerFactory.getLogger("RabbitMqMessageConsumer - Scalability Analysis")
+
+    init {
+        loggerScalabilityAnalysis.info(
+            "identifier of the client processing the message containing a FAMM with global density data; " +
+                    "identifier of the server (producer) that sent the message; " +
+                    "identifier of processed message containing a FAMM with global density data; " +
+                    "timestamp when starting to process the message in milliseconds; " +
+                    "timestamp when finishing to process the message in milliseconds; " +
+                    "duration the message took to process in milliseconds"
+        )
+    }
 
     // CoroutineScope for handling received global density data
     private val coroutineScopeHandleReceivedMessages: CoroutineScope = CoroutineScope(Dispatchers.IO)
@@ -35,6 +49,8 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
     fun onReceiveGlobalDensityData(receivedMessage: Message) {
         // Launch coroutine for handling received global density data within the corresponding CoroutineScope
         coroutineScopeHandleReceivedMessages.launch {
+            val timestampMessageProcessingStarts: Long = NtpClock.currentTimeMillis()
+
             val messageProperties: MessageProperties = receivedMessage.messageProperties
             val messageProducerId: String = messageProperties.getHeader<String>("ProducerId")!!
             val messageId: String = messageProperties.getHeader<String>("MessageId")!!
@@ -54,6 +70,17 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
             SimulatedMobileSensingClientsApplication.measurementManager.handleReceivedFamm(
                 messageProducerId,
                 discretizedMeasurementMap
+            )
+
+            val timestampMessageProcessingEnds: Long = NtpClock.currentTimeMillis()
+
+            loggerScalabilityAnalysis.info(
+                "${SimulatedMobileSensingClientsApplication.clientIdHexString}; " +
+                        "$messageProducerId; " +
+                        "$messageId; " +
+                        "$timestampMessageProcessingStarts; " +
+                        "$timestampMessageProcessingEnds; " +
+                        "${timestampMessageProcessingEnds - timestampMessageProcessingStarts}"
             )
 
             logger.info("[NFR3-C1] Received message $messageId from producer $messageProducerId from queue $globalDensityDataQueue")

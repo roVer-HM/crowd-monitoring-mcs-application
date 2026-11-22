@@ -45,6 +45,13 @@ dependencies {
 
     // This dependency is used internally, and not exposed to consumers on their own compile classpath.
     implementation(libs.guava)
+
+    // NTP client for NTP-synchronised timestamps of the scalability analysis (crowdDensityLibrary.evaluation.NtpClock)
+    // Source: https://commons.apache.org/proper/commons-net/apidocs/org/apache/commons/net/ntp/package-summary.html
+    implementation("commons-net:commons-net:3.13.0")
+
+    // Logging facade; the logging implementation is provided by the application (e.g. Spring Boot)
+    implementation("org.slf4j:slf4j-api:2.0.17")
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
@@ -54,7 +61,7 @@ java {
     }
 }
 
-version = "0.1"
+version = "0.2"
 
 // Source: https://docs.gradle.org/current/userguide/publishing_setup.html#sec:basic_publishing
 publishing {

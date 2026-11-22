@@ -2,12 +2,11 @@ package server
 
 import crowdDensityLibrary.ForeignAggregatedMeasurementMap
 import crowdDensityLibrary.MeasurementMap
+import crowdDensityLibrary.evaluation.NtpClock
 import crowdDensityLibrary.serializer.MeasurementMapSerializer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.apache.commons.net.ntp.NTPUDPClient
-import org.apache.commons.net.ntp.TimeInfo
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.amqp.core.Message
@@ -15,7 +14,6 @@ import org.springframework.amqp.core.MessageProperties
 import org.springframework.amqp.core.Queue
 import org.springframework.amqp.rabbit.annotation.RabbitListener
 import org.springframework.stereotype.Service
-import java.net.InetAddress
 
 // Checked (final)
 // Sources:
@@ -50,7 +48,7 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
     fun onReceiveLocalDensityData(receivedMessage: Message) {
         // Launch coroutine for handling received local density data within the corresponding CoroutineScope
         coroutineScopeHandleReceivedMessages.launch {
-            val timestampMessageProcessingStarts: Long = getTimestampIncludingNtpOffset(ServerApplication.ntpSource)
+            val timestampMessageProcessingStarts: Long = NtpClock.currentTimeMillis()
 
             val messageProperties: MessageProperties = receivedMessage.messageProperties
             val messageProducerId: String = messageProperties.getHeader<String>("ProducerId")!!
@@ -60,7 +58,7 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
             // Handle received local density data sent by an edge client
             handleReceivedMessage(messageProducerId, messageBody)
 
-            val timestampMessageProcessingEnds: Long = getTimestampIncludingNtpOffset(ServerApplication.ntpSource)
+            val timestampMessageProcessingEnds: Long = NtpClock.currentTimeMillis()
             val durationForProcessingLocalDensityDataMessage: Long =
                 timestampMessageProcessingEnds - timestampMessageProcessingStarts
 
@@ -123,22 +121,5 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
             senderMessageReceivedFrom,
             deserializedMeasurementMapFromJson as ForeignAggregatedMeasurementMap
         )
-    }
-
-    // Checked (final)
-    /**
-     * Returns an accurate timestamp according to the time provided by a NTP server.
-     * @param timeSource Address of the NTP server to use for obtaining accurate time.
-     */
-    private fun getTimestampIncludingNtpOffset(timeSource: String): Long {
-        val ntpClient: NTPUDPClient = NTPUDPClient()
-        ntpClient.open()
-
-        val timeInfo: TimeInfo = ntpClient.getTime(InetAddress.getByName(timeSource))
-        timeInfo.computeDetails()
-        val timestampIncludingNtpOffset: Long = System.currentTimeMillis() + timeInfo.offset
-
-        ntpClient.close()
-        return timestampIncludingNtpOffset
     }
 }
