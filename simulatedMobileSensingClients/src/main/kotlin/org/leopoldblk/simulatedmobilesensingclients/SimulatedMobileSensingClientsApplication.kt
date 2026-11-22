@@ -4,6 +4,7 @@ import com.uber.h3core.H3Core
 import crowdDensityLibrary.MeasurementManager
 import crowdDensityLibrary.dataClasses.Coordinates
 import crowdDensityLibrary.dataClasses.Position
+import crowdDensityLibrary.evaluation.NtpClock
 import org.leopoldblk.simulatedmobilesensingclients.Utils.generateRandomCoordinatesWithinGeographicalSquare
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -54,6 +55,13 @@ class SimulatedMobileSensingClientsApplication {
         public val simulatedClientPosition: Position =
             Position(initialCoordinates, initialCellSimulatedClientIsLocatedIn)
 
+        // NTP server to use for obtaining accurate timestamps for scalability analysis (env NTP_SERVER)
+        // Source: https://developers.google.com/time
+        public val ntpSource: String = System.getenv("NTP_SERVER") ?: "time.google.com"
+
+        // Interval between two NTP synchronisations of NtpClock in seconds (env NTP_SYNC_INTERVAL_SECONDS)
+        public val ntpSyncIntervalSeconds: Long = System.getenv("NTP_SYNC_INTERVAL_SECONDS")?.toLongOrNull() ?: 60L
+
         // Measurement manager for handling density data
         public val measurementManager: MeasurementManager = MeasurementManager(
             clientIdHexString,
@@ -64,5 +72,11 @@ class SimulatedMobileSensingClientsApplication {
 }
 
 fun main(args: Array<String>) {
+    // Synchronise the clock for the scalability analysis before any message is sent or received;
+    // afterwards it is re-synchronised in the background, timestamps never wait for NTP
+    NtpClock.start(
+        SimulatedMobileSensingClientsApplication.ntpSource,
+        SimulatedMobileSensingClientsApplication.ntpSyncIntervalSeconds
+    )
     runApplication<SimulatedMobileSensingClientsApplication>(*args)
 }

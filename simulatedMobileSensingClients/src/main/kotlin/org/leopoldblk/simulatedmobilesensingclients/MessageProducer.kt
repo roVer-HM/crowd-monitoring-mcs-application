@@ -3,6 +3,7 @@ package org.leopoldblk.simulatedmobilesensingclients
 import crowdDensityLibrary.LocalAggregatedMeasurementMap
 import crowdDensityLibrary.MeasurementMap
 import crowdDensityLibrary.dataClasses.Measurement
+import crowdDensityLibrary.evaluation.NtpClock
 import crowdDensityLibrary.serializer.MeasurementMapSerializer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,18 @@ import kotlin.random.Random
 @Service
 class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
     private val logger: Logger = LoggerFactory.getLogger("RabbitMqMessageProducer")
+    private val loggerScalabilityAnalysis: Logger =
+        LoggerFactory.getLogger("RabbitMqMessageProducer - Scalability Analysis")
+
+    init {
+        loggerScalabilityAnalysis.info(
+            "identifier of the client sent the message containing the LAMM with local density data; " +
+                    "identifier of sent message containing the LAMM with local density data; " +
+                    "exchange the message was published to; " +
+                    "timestamp before sending the message in milliseconds; " +
+                    "timestamp after sending the message in milliseconds"
+        )
+    }
 
     // CoroutineScope for updating and publishing the LAMM
     private val coroutineScopeUpdateAndPublishLamm: CoroutineScope = CoroutineScope(Dispatchers.IO)
@@ -98,9 +111,21 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
 
         val message = Message(messageToBePublished.toByteArray(), messageProperties)
 
+        val timestampBeforeMessageSent: Long = NtpClock.currentTimeMillis()
+
         rabbitTemplate.convertAndSend(
             exchangeToPublishOn, null,
             message
+        )
+
+        val timestampAfterMessageSent: Long = NtpClock.currentTimeMillis()
+
+        loggerScalabilityAnalysis.info(
+            "${SimulatedMobileSensingClientsApplication.clientIdHexString}; " +
+                    "${messageId.toHexString()}; " +
+                    "$exchangeToPublishOn; " +
+                    "$timestampBeforeMessageSent; " +
+                    "$timestampAfterMessageSent"
         )
 
         logger.info("[NFR3-C1] Published message ${messageId.toHexString()} as producer ${SimulatedMobileSensingClientsApplication.clientIdHexString} to exchange $exchangeToPublishOn")

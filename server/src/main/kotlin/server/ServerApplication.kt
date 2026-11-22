@@ -1,6 +1,7 @@
 package server
 
 import crowdDensityLibrary.MeasurementManager
+import crowdDensityLibrary.evaluation.NtpClock
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.scheduling.annotation.EnableScheduling
@@ -27,9 +28,12 @@ class ServerApplication {
         public val distantAreaDiscretizationLevel: UShort = 11U
         public val levelToDetermineNearbyArea: UShort = 11U
 
-        // NTP server to use for obtaining accurate timestamps for scalability analysis
+        // NTP server to use for obtaining accurate timestamps for scalability analysis (env NTP_SERVER)
         // Source: https://developers.google.com/time
-        public val ntpSource: String = "time.google.com"
+        public val ntpSource: String = System.getenv("NTP_SERVER") ?: "time.google.com"
+
+        // Interval between two NTP synchronisations of NtpClock in seconds (env NTP_SYNC_INTERVAL_SECONDS)
+        public val ntpSyncIntervalSeconds: Long = System.getenv("NTP_SYNC_INTERVAL_SECONDS")?.toLongOrNull() ?: 60L
 
         // Measurement manager for handling density data (measurement maps)
         public val measurementManager: MeasurementManager = MeasurementManager(
@@ -41,5 +45,8 @@ class ServerApplication {
 }
 
 fun main(args: Array<String>) {
+    // Synchronise the clock for the scalability analysis before any message is processed;
+    // afterwards it is re-synchronised in the background, timestamps never wait for NTP
+    NtpClock.start(ServerApplication.ntpSource, ServerApplication.ntpSyncIntervalSeconds)
     runApplication<ServerApplication>(*args)
 }
