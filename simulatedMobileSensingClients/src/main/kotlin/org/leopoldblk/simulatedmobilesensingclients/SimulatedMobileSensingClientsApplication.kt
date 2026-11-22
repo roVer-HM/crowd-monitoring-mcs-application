@@ -55,6 +55,17 @@ class SimulatedMobileSensingClientsApplication {
         public val simulatedClientPosition: Position =
             Position(initialCoordinates, initialCellSimulatedClientIsLocatedIn)
 
+        // Interval for generating new random measurements in seconds (env MEASUREMENT_INTERVAL_SECONDS).
+        // 0 (default): measurements are generated only once at startup
+        public val measurementIntervalSeconds: Long =
+            (System.getenv("MEASUREMENT_INTERVAL_SECONDS")?.toLongOrNull() ?: 0L).coerceAtLeast(0L)
+
+        // Interval for refreshing the creation timestamps of the current measurements (values unchanged) in seconds
+        // (env MEASUREMENT_REFRESH_SECONDS). 0: no refresh. Default: MEASUREMENT_INTERVAL_SECONDS, or 1 if that is 0
+        public val measurementRefreshSeconds: Long =
+            System.getenv("MEASUREMENT_REFRESH_SECONDS")?.toLongOrNull()?.coerceAtLeast(0L)
+                ?: if (measurementIntervalSeconds == 0L) 1L else measurementIntervalSeconds
+
         // NTP server to use for obtaining accurate timestamps for scalability analysis (env NTP_SERVER)
         // Source: https://developers.google.com/time
         public val ntpSource: String = System.getenv("NTP_SERVER") ?: "time.google.com"
