@@ -31,16 +31,45 @@ object Utils {
         return cellIdWithLeadingZeros
     }
 
-    // Checked (final)
-    // Generation of random coordinates within a geographical square specified by the top left and bottom right coordinate
+    // Generation of random coordinates within a geographical square specified by the top left and bottom right coordinate.
+    // The order of the corners does not matter; if both corners have the same latitude (longitude), that latitude
+    // (longitude) is used, so identical corners place the client exactly at this point.
     public fun generateRandomCoordinatesWithinGeographicalSquare(
         topLeft: Coordinates,
         bottomRight: Coordinates
     ): Coordinates {
-        val randomLatitude: Double = Random.nextDouble(bottomRight.latitude, topLeft.latitude)
-        val randomLongitude: Double = Random.nextDouble(topLeft.longitude, bottomRight.longitude)
+        return Coordinates(
+            randomBetween(topLeft.latitude, bottomRight.latitude),
+            randomBetween(topLeft.longitude, bottomRight.longitude)
+        )
+    }
 
-        return Coordinates(randomLatitude, randomLongitude)
+    // Uniformly distributed random value between a and b (inclusive of the lower bound); a if both are equal
+    private fun randomBetween(a: Double, b: Double): Double {
+        val lower: Double = minOf(a, b)
+        val upper: Double = maxOf(a, b)
+        return if (lower == upper) lower else Random.nextDouble(lower, upper)
+    }
+
+    /**
+     * Reads coordinates in the format "latitude,longitude" (decimal degrees, e.g. "48.142977,11.566536") from the
+     * environment variable [name]. Returns [default] if the variable is not set or empty.
+     * @throws IllegalArgumentException if the value cannot be parsed or is out of range.
+     */
+    public fun coordinatesFromEnvironment(name: String, default: Coordinates): Coordinates {
+        val value: String = System.getenv(name)?.trim().orEmpty()
+        if (value.isEmpty()) return default
+
+        val parts: List<Double?> = value.split(",").map { it.trim().toDoubleOrNull() }
+        val latitude: Double? = parts.getOrNull(0)
+        val longitude: Double? = parts.getOrNull(1)
+        require(parts.size == 2 && latitude != null && longitude != null) {
+            "$name must have the format \"latitude,longitude\" in decimal degrees, but is \"$value\""
+        }
+        require(latitude in -90.0..90.0 && longitude in -180.0..180.0) {
+            "$name is out of range (latitude -90..90, longitude -180..180): \"$value\""
+        }
+        return Coordinates(latitude, longitude)
     }
 
     // Checked (final)

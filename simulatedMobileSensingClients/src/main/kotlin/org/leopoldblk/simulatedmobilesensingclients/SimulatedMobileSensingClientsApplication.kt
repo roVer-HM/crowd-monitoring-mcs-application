@@ -27,9 +27,13 @@ class SimulatedMobileSensingClientsApplication {
         public val timeToLiveMeasurementMapInMilliseconds: ULong = 60000u
 
         // Definition of the coordinates of the top left and the bottom right corner of the geographical square
-        // from which the position of the simulated mobile sensing client is randomly chosen (Munich center)
-        private val topLeft: Coordinates = Coordinates(48.142977, 11.566536)
-        private val bottomRight: Coordinates = Coordinates(48.133292, 11.584525)
+        // from which the position of the simulated mobile sensing client is randomly chosen.
+        // Env SPAWN_AREA_TOP_LEFT / SPAWN_AREA_BOTTOM_RIGHT as "latitude,longitude"; default: Munich center.
+        // Identical corners place the client exactly at this point.
+        public val topLeft: Coordinates =
+            Utils.coordinatesFromEnvironment("SPAWN_AREA_TOP_LEFT", Coordinates(48.142977, 11.566536))
+        public val bottomRight: Coordinates =
+            Utils.coordinatesFromEnvironment("SPAWN_AREA_BOTTOM_RIGHT", Coordinates(48.133292, 11.584525))
 
         // Self-generated identifier of the simulated client as hexadecimal string
         public val clientIdHexString: String = clientId.toHexString()
@@ -54,6 +58,17 @@ class SimulatedMobileSensingClientsApplication {
 
         public val simulatedClientPosition: Position =
             Position(initialCoordinates, initialCellSimulatedClientIsLocatedIn)
+
+        // Interval for generating new random measurements in seconds (env MEASUREMENT_INTERVAL_SECONDS).
+        // 0 (default): measurements are generated only once at startup
+        public val measurementIntervalSeconds: Long =
+            (System.getenv("MEASUREMENT_INTERVAL_SECONDS")?.toLongOrNull() ?: 0L).coerceAtLeast(0L)
+
+        // Interval for refreshing the creation timestamps of the current measurements (values unchanged) in seconds
+        // (env MEASUREMENT_REFRESH_SECONDS). 0: no refresh. Default: MEASUREMENT_INTERVAL_SECONDS, or 1 if that is 0
+        public val measurementRefreshSeconds: Long =
+            System.getenv("MEASUREMENT_REFRESH_SECONDS")?.toLongOrNull()?.coerceAtLeast(0L)
+                ?: if (measurementIntervalSeconds == 0L) 1L else measurementIntervalSeconds
 
         // NTP server to use for obtaining accurate timestamps for scalability analysis (env NTP_SERVER)
         // Source: https://developers.google.com/time
