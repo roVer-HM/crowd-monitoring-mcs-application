@@ -27,9 +27,13 @@ class SimulatedMobileSensingClientsApplication {
         public val timeToLiveMeasurementMapInMilliseconds: ULong = 60000u
 
         // Definition of the coordinates of the top left and the bottom right corner of the geographical square
-        // from which the position of the simulated mobile sensing client is randomly chosen (Munich center)
-        private val topLeft: Coordinates = Coordinates(48.142977, 11.566536)
-        private val bottomRight: Coordinates = Coordinates(48.133292, 11.584525)
+        // from which the position of the simulated mobile sensing client is randomly chosen.
+        // Env SPAWN_AREA_TOP_LEFT / SPAWN_AREA_BOTTOM_RIGHT as "latitude,longitude"; default: Munich center.
+        // Identical corners place the client exactly at this point.
+        public val topLeft: Coordinates =
+            Utils.coordinatesFromEnvironment("SPAWN_AREA_TOP_LEFT", Coordinates(48.142977, 11.566536))
+        public val bottomRight: Coordinates =
+            Utils.coordinatesFromEnvironment("SPAWN_AREA_BOTTOM_RIGHT", Coordinates(48.133292, 11.584525))
 
         // Self-generated identifier of the simulated client as hexadecimal string
         public val clientIdHexString: String = clientId.toHexString()

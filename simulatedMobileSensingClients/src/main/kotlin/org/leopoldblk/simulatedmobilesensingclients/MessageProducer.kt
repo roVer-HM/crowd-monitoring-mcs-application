@@ -73,6 +73,16 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
                     " (MEASUREMENT_INTERVAL_SECONDS=${intervalMillis / 1000}, MEASUREMENT_REFRESH_SECONDS=${refreshMillis / 1000})"
         )
 
+        logger.info(
+            "Client position: ${SimulatedMobileSensingClientsApplication.initialCoordinates.latitude}," +
+                    "${SimulatedMobileSensingClientsApplication.initialCoordinates.longitude} " +
+                    "(cell ${SimulatedMobileSensingClientsApplication.initialCellSimulatedClientIsLocatedIn}), " +
+                    "spawn area ${SimulatedMobileSensingClientsApplication.topLeft.latitude}," +
+                    "${SimulatedMobileSensingClientsApplication.topLeft.longitude} / " +
+                    "${SimulatedMobileSensingClientsApplication.bottomRight.latitude}," +
+                    "${SimulatedMobileSensingClientsApplication.bottomRight.longitude}"
+        )
+
         launchAtFixedRate(intervalMillis) { updateLmm() }
         if (refreshEnabled) {
             launchAtFixedRate(refreshMillis, initialDelayMillis = refreshMillis) { refreshLmmTimestamps() }
