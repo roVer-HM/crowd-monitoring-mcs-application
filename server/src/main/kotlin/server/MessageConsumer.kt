@@ -28,13 +28,16 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
     // CoroutineScope for handling received global and local density data
     private val coroutineScopeHandleReceivedMessages: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
+    // Scalability analysis records: one line per message, fields separated by "; ", first field = record type.
+    // The header line (record type prefixed with "#") names the fields. Timestamps: NtpClock, milliseconds.
+    //  S-LOCAL-RX:  local density data from a client (received = listener entry, start = processing coroutine starts)
+    //  S-GLOBAL-RX: global density data from another server
     init {
         loggerScalabilityAnalysis.info(
-            "identifier of the server processing the message containing a FAMM with local density data; " +
-                    "identifier of processed message containing a FAMM with local density data; " +
-                    "timestamp when starting to process the message containing a FAMM with local density data in milliseconds; " +
-                    "timestamp when finishing to process the message containing a FAMM with local density data in milliseconds; " +
-                    "duration the message containing a FAMM with local density data took to process in milliseconds"
+            "#S-LOCAL-RX; serverId; producerId; messageId; tsReceived; tsStart; tsEnd; bytes; measurements"
+        )
+        loggerScalabilityAnalysis.info(
+            "#S-GLOBAL-RX; serverId; producerId; messageId; tsReceived; tsStart; tsEnd; bytes; measurements"
         )
     }
 
@@ -46,6 +49,9 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
      */
     @RabbitListener(queues = arrayOf("rabbit-mq-queue-local-density-data"))
     fun onReceiveLocalDensityData(receivedMessage: Message) {
+        // Time the message was handed over by the broker (before waiting for a coroutine thread)
+        val timestampMessageReceived: Long = NtpClock.currentTimeMillis()
+
         // Launch coroutine for handling received local density data within the corresponding CoroutineScope
         coroutineScopeHandleReceivedMessages.launch {
             val timestampMessageProcessingStarts: Long = NtpClock.currentTimeMillis()
@@ -56,18 +62,21 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
             val messageBody: String = receivedMessage.body.decodeToString()
 
             // Handle received local density data sent by an edge client
-            handleReceivedMessage(messageProducerId, messageBody)
+            val numberOfMeasurements: Int = handleReceivedMessage(messageProducerId, messageBody)
 
             val timestampMessageProcessingEnds: Long = NtpClock.currentTimeMillis()
-            val durationForProcessingLocalDensityDataMessage: Long =
-                timestampMessageProcessingEnds - timestampMessageProcessingStarts
+            ServerApplication.processedLocalDensityMessages.incrementAndGet()
 
             loggerScalabilityAnalysis.info(
-                "${ServerApplication.serverIdHexString}; " +
+                "S-LOCAL-RX; " +
+                        "${ServerApplication.serverIdHexString}; " +
+                        "$messageProducerId; " +
                         "$messageId; " +
+                        "$timestampMessageReceived; " +
                         "$timestampMessageProcessingStarts; " +
                         "$timestampMessageProcessingEnds; " +
-                        "$durationForProcessingLocalDensityDataMessage"
+                        "${receivedMessage.body.size}; " +
+                        "$numberOfMeasurements"
             )
 
 //            logger.info(
@@ -86,8 +95,11 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
      */
     @RabbitListener(queues = ["#{globalDensityDataQueue.getName()}"])
     fun onReceiveGlobalDensityData(receivedMessage: Message) {
+        val timestampMessageReceived: Long = NtpClock.currentTimeMillis()
+
         // Launch coroutine for handling received global density data within the corresponding CoroutineScope
         coroutineScopeHandleReceivedMessages.launch {
+            val timestampMessageProcessingStarts: Long = NtpClock.currentTimeMillis()
             val messageProperties: MessageProperties = receivedMessage.messageProperties
             val messageProducerId: String = messageProperties.getHeader<String>("ProducerId")!!
             val messageId: String = messageProperties.getHeader<String>("MessageId")!!
@@ -100,7 +112,20 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
 //                        "containing the FAMM: ${Json { prettyPrint = true }.parseToJsonElement(messageBody)}"
 //                )
 
-                handleReceivedMessage(messageProducerId, messageBody)
+                val numberOfMeasurements: Int = handleReceivedMessage(messageProducerId, messageBody)
+                val timestampMessageProcessingEnds: Long = NtpClock.currentTimeMillis()
+
+                loggerScalabilityAnalysis.info(
+                    "S-GLOBAL-RX; " +
+                            "${ServerApplication.serverIdHexString}; " +
+                            "$messageProducerId; " +
+                            "$messageId; " +
+                            "$timestampMessageReceived; " +
+                            "$timestampMessageProcessingStarts; " +
+                            "$timestampMessageProcessingEnds; " +
+                            "${receivedMessage.body.size}; " +
+                            "$numberOfMeasurements"
+                )
             }
         }
     }
@@ -110,16 +135,21 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
      * Handling of a measurement map sent by an edge client or another server instance.
      * @param senderMessageReceivedFrom Identifier of the measurement maps sender. This might be an edge client or another server instance.
      * @param receivedMeasurementMapAsJson Received measurement map in JSON format.
+     * @return Number of measurements contained in the received measurement map.
      */
-    private suspend fun handleReceivedMessage(senderMessageReceivedFrom: String, receivedMeasurementMapAsJson: String) {
+    private suspend fun handleReceivedMessage(senderMessageReceivedFrom: String, receivedMeasurementMapAsJson: String): Int {
         // Deserialize the received measurement map as this is in JSON format
         val deserializedMeasurementMapFromJson: MeasurementMap =
             MeasurementMapSerializer.deserializeJsonToMeasurementMap(receivedMeasurementMapAsJson)
+
+        val numberOfMeasurements: Int = deserializedMeasurementMapFromJson.getAllMeasurements().size
 
         // Handover the senders identifier and the received density data to the measurement manager for further processing
         ServerApplication.measurementManager.handleReceivedFamm(
             senderMessageReceivedFrom,
             deserializedMeasurementMapFromJson as ForeignAggregatedMeasurementMap
         )
+
+        return numberOfMeasurements
     }
 }

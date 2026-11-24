@@ -25,14 +25,12 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
     private val loggerScalabilityAnalysis: Logger =
         LoggerFactory.getLogger("RabbitMqMessageConsumer - Scalability Analysis")
 
+    // Scalability analysis records: one line per message, fields separated by "; ", first field = record type.
+    // The header line (record type prefixed with "#") names the fields. Timestamps: NtpClock, milliseconds.
+    //  C-GLOBAL-RX: global density data from a server (received = listener entry, start = processing coroutine starts)
     init {
         loggerScalabilityAnalysis.info(
-            "identifier of the client processing the message containing a FAMM with global density data; " +
-                    "identifier of the server (producer) that sent the message; " +
-                    "identifier of processed message containing a FAMM with global density data; " +
-                    "timestamp when starting to process the message in milliseconds; " +
-                    "timestamp when finishing to process the message in milliseconds; " +
-                    "duration the message took to process in milliseconds"
+            "#C-GLOBAL-RX; clientId; producerId; messageId; tsReceived; tsStart; tsEnd; bytes; measurements"
         )
     }
 
@@ -47,6 +45,8 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
      */
     @RabbitListener(queues = ["#{globalDensityDataQueue.getName()}"])
     fun onReceiveGlobalDensityData(receivedMessage: Message) {
+        val timestampMessageReceived: Long = NtpClock.currentTimeMillis()
+
         // Launch coroutine for handling received global density data within the corresponding CoroutineScope
         coroutineScopeHandleReceivedMessages.launch {
             val timestampMessageProcessingStarts: Long = NtpClock.currentTimeMillis()
@@ -75,12 +75,15 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
             val timestampMessageProcessingEnds: Long = NtpClock.currentTimeMillis()
 
             loggerScalabilityAnalysis.info(
-                "${SimulatedMobileSensingClientsApplication.clientIdHexString}; " +
+                "C-GLOBAL-RX; " +
+                        "${SimulatedMobileSensingClientsApplication.clientIdHexString}; " +
                         "$messageProducerId; " +
                         "$messageId; " +
+                        "$timestampMessageReceived; " +
                         "$timestampMessageProcessingStarts; " +
                         "$timestampMessageProcessingEnds; " +
-                        "${timestampMessageProcessingEnds - timestampMessageProcessingStarts}"
+                        "${receivedMessage.body.size}; " +
+                        "${deserializedMeasurementMapFromJson.getAllMeasurements().size}"
             )
 
             logger.info("[NFR3-C1] Received message $messageId from producer $messageProducerId from queue $globalDensityDataQueue")

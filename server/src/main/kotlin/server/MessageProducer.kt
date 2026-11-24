@@ -29,14 +29,13 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
     // CoroutineScope for generating and sending the message containing the LAMM with global density data
     private val coroutineScopeGenerateAndSendLamm: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
+    // Scalability analysis records: one line per message, fields separated by "; ", first field = record type.
+    // The header line (record type prefixed with "#") names the fields. Timestamps: NtpClock, milliseconds.
+    //  S-GLOBAL-TX: LAMM with global density data sent to all clients and servers (every 5 s);
+    //  processedLocal = number of local density messages processed by this server since the previous S-GLOBAL-TX
     init {
         loggerScalabilityAnalysis.info(
-            "identifier of the server sent the message containing the LAMM with global density data; " +
-                    "identifier of sent message containing the LAMM with global density data; " +
-                    "timestamp when starting to generate the LAMM and the message containing the LAMM with global density data in milliseconds; " +
-                    "timestamp when finishing to generate the LAMM and the message containing the LAMM with global density data in milliseconds; " +
-                    "time to to generate the LAMM and the message containing the LAMM with global density data in milliseconds; " +
-                    "timestamp after sending the message containing the LAMM with global density data in milliseconds"
+            "#S-GLOBAL-TX; serverId; messageId; tsGenerationStart; tsGenerationEnd; tsAfterSend; bytes; measurements; processedLocal"
         )
     }
 
@@ -66,14 +65,15 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
             )
 
             // Generate a random identifier for the message to be published
-            val messageId: ByteArray = Random.nextBytes(ByteArray(4))
+            val messageId: ByteArray = Random.nextBytes(ByteArray(8))
 
             // Generate message properties containing a header with the client and the message identifier
             val messageProperties: MessageProperties = MessageProperties()
             messageProperties.setHeader("ProducerId", ServerApplication.serverIdHexString)
             messageProperties.setHeader("MessageId", messageId.toHexString())
 
-            val message: Message = Message(serializedLammToJson.toByteArray(), messageProperties)
+            val messageBody: ByteArray = serializedLammToJson.toByteArray()
+            val message: Message = Message(messageBody, messageProperties)
 
             val timestampLammAndMessageGenerationsEnds: Long =
                 NtpClock.currentTimeMillis()
@@ -85,16 +85,17 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
 
             val timestampAfterGlobalDensityDataMessageSent: Long =
                 NtpClock.currentTimeMillis()
-            val timeToGenerateLammAndMessage: Long =
-                timestampLammAndMessageGenerationsEnds - timestampLammAndMessageGenerationsStarts
 
             loggerScalabilityAnalysis.info(
-                "${ServerApplication.serverIdHexString}; " +
+                "S-GLOBAL-TX; " +
+                        "${ServerApplication.serverIdHexString}; " +
                         "${messageId.toHexString()}; " +
                         "$timestampLammAndMessageGenerationsStarts; " +
                         "$timestampLammAndMessageGenerationsEnds; " +
-                        "$timeToGenerateLammAndMessage; " +
-                        "$timestampAfterGlobalDensityDataMessageSent"
+                        "$timestampAfterGlobalDensityDataMessageSent; " +
+                        "${messageBody.size}; " +
+                        "${lammWithPrioritizedMeasurements.getAllMeasurements().size}; " +
+                        "${ServerApplication.processedLocalDensityMessages.getAndSet(0)}"
             )
 
 //            logger.info(

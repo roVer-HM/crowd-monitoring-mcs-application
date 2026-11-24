@@ -34,13 +34,12 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
     private val loggerScalabilityAnalysis: Logger =
         LoggerFactory.getLogger("RabbitMqMessageProducer - Scalability Analysis")
 
+    // Scalability analysis records: one line per message, fields separated by "; ", first field = record type.
+    // The header line (record type prefixed with "#") names the fields. Timestamps: NtpClock, milliseconds.
+    //  C-LOCAL-TX: LAMM with local density data sent to the servers (every 5 s)
     init {
         loggerScalabilityAnalysis.info(
-            "identifier of the client sent the message containing the LAMM with local density data; " +
-                    "identifier of sent message containing the LAMM with local density data; " +
-                    "exchange the message was published to; " +
-                    "timestamp before sending the message in milliseconds; " +
-                    "timestamp after sending the message in milliseconds"
+            "#C-LOCAL-TX; clientId; messageId; tsBeforeSend; tsAfterSend; bytes; measurements"
         )
     }
 
@@ -167,7 +166,11 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
                 )
 
             // Publish the updated LAMM to the exchange for local density data
-            publishMessage("rabbit-mq-exchange-local-density-data", serializedAndPrioritizedLammToJson)
+            publishMessage(
+                "rabbit-mq-exchange-local-density-data",
+                serializedAndPrioritizedLammToJson,
+                lamWithPrioritizedMeasurements.getAllMeasurements().size
+            )
         }
     }
 
@@ -176,17 +179,19 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
      * Publishes the given message to the specified exchange.
      * @param exchangeToPublishOn Exchange to send given message to.
      * @param messageToBePublished Message to be published.
+     * @param numberOfMeasurements Number of measurements in the message (scalability analysis only).
      */
-    fun publishMessage(exchangeToPublishOn: String, messageToBePublished: String) {
-        // Generate a random identifier for the message to be published
-        val messageId: ByteArray = Random.nextBytes(ByteArray(4))
+    fun publishMessage(exchangeToPublishOn: String, messageToBePublished: String, numberOfMeasurements: Int = -1) {
+        // Generate a random identifier for the message to be published (8 bytes: unique within a measurement run)
+        val messageId: ByteArray = Random.nextBytes(ByteArray(8))
 
         // Generate message properties containing a header with client and the message identifier
         val messageProperties: MessageProperties = MessageProperties()
         messageProperties.setHeader("ProducerId", SimulatedMobileSensingClientsApplication.clientIdHexString)
         messageProperties.setHeader("MessageId", messageId.toHexString())
 
-        val message = Message(messageToBePublished.toByteArray(), messageProperties)
+        val messageBody: ByteArray = messageToBePublished.toByteArray()
+        val message = Message(messageBody, messageProperties)
 
         val timestampBeforeMessageSent: Long = NtpClock.currentTimeMillis()
 
@@ -198,11 +203,13 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
         val timestampAfterMessageSent: Long = NtpClock.currentTimeMillis()
 
         loggerScalabilityAnalysis.info(
-            "${SimulatedMobileSensingClientsApplication.clientIdHexString}; " +
+            "C-LOCAL-TX; " +
+                    "${SimulatedMobileSensingClientsApplication.clientIdHexString}; " +
                     "${messageId.toHexString()}; " +
-                    "$exchangeToPublishOn; " +
                     "$timestampBeforeMessageSent; " +
-                    "$timestampAfterMessageSent"
+                    "$timestampAfterMessageSent; " +
+                    "${messageBody.size}; " +
+                    "$numberOfMeasurements"
         )
 
         logger.info("[NFR3-C1] Published message ${messageId.toHexString()} as producer ${SimulatedMobileSensingClientsApplication.clientIdHexString} to exchange $exchangeToPublishOn")
