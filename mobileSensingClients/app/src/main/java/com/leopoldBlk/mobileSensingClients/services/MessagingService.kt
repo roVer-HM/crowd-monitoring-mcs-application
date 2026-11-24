@@ -21,6 +21,9 @@ import com.uber.h3core.H3Core
 import crowdDensityLibrary.ForeignAggregatedMeasurementMap
 import crowdDensityLibrary.MeasurementMap
 import crowdDensityLibrary.serializer.MeasurementMapSerializer
+import java.security.KeyStore
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -235,6 +238,13 @@ class MessagingService : LifecycleService() {
             connectionFactory.password = BuildConfig.RABBIT_MQ_PASSWORD
             connectionFactory.isAutomaticRecoveryEnabled = false
 
+            // TLS (AMQPS, port 5671): the server certificate (Let's Encrypt) is validated against the Android
+            // system trust store and the host name RABBIT_MQ_HOST is verified against the certificate.
+            // Note: useSslProtocol() without an SSLContext would trust ANY certificate and must not be used.
+            // Source: https://www.rabbitmq.com/client-libraries/java-api-guide#tls
+            connectionFactory.useSslProtocol(createSystemTrustSslContext())
+            connectionFactory.enableHostnameVerification()
+
             try {
                 connection =
                     connectionFactory.newConnection("physical mobile sensing client ${DataStore.clientIdHexString}")
@@ -252,10 +262,23 @@ class MessagingService : LifecycleService() {
                 LogController.log(
                     Log.ERROR,
                     "MessagingService",
-                    "Not able to establish connection to RabbitMQ cluster!"
+                    "Not able to establish connection to RabbitMQ cluster! ($e)"
                 )
             }
         }
+    }
+
+    /**
+     * SSLContext that trusts the certificate authorities of the Android system trust store (e.g. Let's Encrypt).
+     */
+    private fun createSystemTrustSslContext(): SSLContext {
+        val trustManagerFactory: TrustManagerFactory =
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        trustManagerFactory.init(null as KeyStore?)
+
+        val sslContext: SSLContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, trustManagerFactory.trustManagers, null)
+        return sslContext
     }
 
     // Checked (final)
