@@ -5,6 +5,7 @@ import crowdDensityLibrary.evaluation.NtpClock
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.scheduling.annotation.EnableScheduling
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 
 // Checked (final)
@@ -34,6 +35,9 @@ class ServerApplication {
 
         // Interval between two NTP synchronisations of NtpClock in seconds (env NTP_SYNC_INTERVAL_SECONDS)
         public val ntpSyncIntervalSeconds: Long = System.getenv("NTP_SYNC_INTERVAL_SECONDS")?.toLongOrNull() ?: 60L
+
+        // Number of processed messages with local density data since the last LAMM was sent (scalability analysis)
+        public val processedLocalDensityMessages: AtomicLong = AtomicLong(0)
 
         // Measurement manager for handling density data (measurement maps)
         public val measurementManager: MeasurementManager = MeasurementManager(
