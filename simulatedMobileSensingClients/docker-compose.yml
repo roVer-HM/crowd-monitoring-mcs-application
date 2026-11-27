@@ -4,13 +4,15 @@
 services:
   simulated_mobile_sensing_client:
     # Pull docker image from the GitHub Container Registry (multi-arch image built from the fork roVer-HM)
-    image: ghcr.io/rover-hm/simulated_mobile_sensing_client:0.4.0
+    image: ghcr.io/rover-hm/simulated_mobile_sensing_client:0.5.0
     environment:
       # Specify parameters to connect to the RabbitMQ cluster
       RABBIT_MQ_HOST:
       RABBIT_MQ_PORT:
       RABBIT_MQ_USERNAME:
       RABBIT_MQ_PASSWORD:
+      # Interval for publishing the local density data in ms (default 5000, as in the thesis)
+      PUBLISH_INTERVAL_MS: 5000
     # Specify port mapping for the container(s)
     ports:
       -

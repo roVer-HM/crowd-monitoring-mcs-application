@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.amqp.core.Message
 import org.springframework.amqp.core.MessageProperties
 import org.springframework.amqp.rabbit.core.RabbitTemplate
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import kotlin.random.Random
@@ -21,7 +22,12 @@ import kotlin.random.Random
 // https://www.rabbitmq.com/tutorials/tutorial-one-spring-amqp
 // https://www.svix.com/guides/rabbitmq/rabbitmq-springboot-tutorial/
 @Service
-class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
+class MessageProducer(
+    private val rabbitTemplate: RabbitTemplate,
+    // Interval for publishing the LAMM with global density data in ms (env GLOBAL_PUBLISH_INTERVAL_MS, default 5000
+    // as in the thesis). Must be the same expression as in @Scheduled of generateAndSendLamm()
+    @Value("\${GLOBAL_PUBLISH_INTERVAL_MS:5000}") private val globalPublishIntervalMillis: Long
+) {
     //private val logger: Logger = LoggerFactory.getLogger("RabbitMqMessageProducer")
     private val loggerScalabilityAnalysis: Logger =
         LoggerFactory.getLogger("RabbitMqMessageProducer - Scalability Analysis")
@@ -31,16 +37,23 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
 
     // Scalability analysis records: one line per message, fields separated by "; ", first field = record type.
     // The header line (record type prefixed with "#") names the fields. Timestamps: NtpClock, milliseconds.
-    //  S-GLOBAL-TX: LAMM with global density data sent to all clients and servers (every 5 s);
-    //  processedLocal = number of local density messages processed by this server since the previous S-GLOBAL-TX
+    //  S-GLOBAL-TX: LAMM with global density data sent to all clients and servers (every GLOBAL_PUBLISH_INTERVAL_MS,
+    //  default 5 s); processedLocal = number of local density messages processed by this server since the previous S-GLOBAL-TX
     init {
+        require(globalPublishIntervalMillis > 0) {
+            "GLOBAL_PUBLISH_INTERVAL_MS must be > 0, is $globalPublishIntervalMillis"
+        }
+        loggerScalabilityAnalysis.info(
+            "Publish interval for global density data: $globalPublishIntervalMillis ms (GLOBAL_PUBLISH_INTERVAL_MS)"
+        )
         loggerScalabilityAnalysis.info(
             "#S-GLOBAL-TX; serverId; messageId; tsGenerationStart; tsGenerationEnd; tsAfterSend; bytes; measurements; processedLocal"
         )
     }
 
     // Checked (final)
-    @Scheduled(fixedRate = 5000)
+    // Interval configurable via env GLOBAL_PUBLISH_INTERVAL_MS (default 5000 ms, as in the thesis)
+    @Scheduled(fixedRateString = "\${GLOBAL_PUBLISH_INTERVAL_MS:5000}")
     public fun generateAndSendLamm() {
         coroutineScopeGenerateAndSendLamm.launch {
             val timestampLammAndMessageGenerationsStarts: Long =

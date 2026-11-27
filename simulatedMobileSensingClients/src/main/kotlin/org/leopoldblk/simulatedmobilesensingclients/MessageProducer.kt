@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.amqp.core.Message
 import org.springframework.amqp.core.MessageProperties
 import org.springframework.amqp.rabbit.core.RabbitTemplate
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Scheduled
@@ -29,15 +30,22 @@ import kotlin.random.Random
 // https://www.rabbitmq.com/tutorials/tutorial-one-spring-amqp
 // https://www.svix.com/guides/rabbitmq/rabbitmq-springboot-tutorial/
 @Service
-class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
+class MessageProducer(
+    private val rabbitTemplate: RabbitTemplate,
+    // Interval for publishing the LAMM with local density data in ms (env PUBLISH_INTERVAL_MS, default 5000 as in
+    // the thesis). Must be the same expression as in @Scheduled of publishLamm()
+    @Value("\${PUBLISH_INTERVAL_MS:5000}") private val publishIntervalMillis: Long
+) {
     private val logger: Logger = LoggerFactory.getLogger("RabbitMqMessageProducer")
     private val loggerScalabilityAnalysis: Logger =
         LoggerFactory.getLogger("RabbitMqMessageProducer - Scalability Analysis")
 
     // Scalability analysis records: one line per message, fields separated by "; ", first field = record type.
     // The header line (record type prefixed with "#") names the fields. Timestamps: NtpClock, milliseconds.
-    //  C-LOCAL-TX: LAMM with local density data sent to the servers (every 5 s)
+    //  C-LOCAL-TX: LAMM with local density data sent to the servers (every PUBLISH_INTERVAL_MS, default 5 s)
     init {
+        require(publishIntervalMillis > 0) { "PUBLISH_INTERVAL_MS must be > 0, is $publishIntervalMillis" }
+        loggerScalabilityAnalysis.info("Publish interval for local density data: $publishIntervalMillis ms (PUBLISH_INTERVAL_MS)")
         loggerScalabilityAnalysis.info(
             "#C-LOCAL-TX; clientId; messageId; tsBeforeSend; tsAfterSend; bytes; measurements"
         )
@@ -143,7 +151,8 @@ class MessageProducer(private val rabbitTemplate: RabbitTemplate) {
     }
 
     // Checked (final)
-    @Scheduled(fixedRate = 5000)
+    // Interval configurable via env PUBLISH_INTERVAL_MS (default 5000 ms, as in the thesis)
+    @Scheduled(fixedRateString = "\${PUBLISH_INTERVAL_MS:5000}")
     fun publishLamm() {
         // Launch coroutine for updating and publishing the LAMM within the corresponding CoroutineScope
         coroutineScopeUpdateAndPublishLamm.launch {
