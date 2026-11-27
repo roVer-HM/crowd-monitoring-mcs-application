@@ -15,7 +15,7 @@ class RabbitMQConfiguration {
     val queueName: String = "rabbit-mq-queue-global-density-data-" + ServerApplication.serverIdHexString
 
     // Exchange name to publish updates to the global density data
-    val exchangeName: String = "rabbit-mq-exchange-global-density-data"
+    val exchangeName: String = MessageProducer.GLOBAL_DENSITY_DATA_EXCHANGE
 
     // Source: https://docs.spring.io/spring-amqp/reference/amqp/connections.html
     @Bean
@@ -35,5 +35,12 @@ class RabbitMQConfiguration {
     @Bean
     fun globalDensityDataBinding(): Binding {
         return Binding(queueName, Binding.DestinationType.QUEUE, exchangeName, "", null)
+    }
+
+    // Bind the same queue to the exchange used by followers to synchronise the servers (GLOBAL_PUBLISHER_MODE=leader,
+    // see PublisherRole). The exchange is created by the messaging topology (rabbit-mq-exchange-server-sync).
+    @Bean
+    fun serverSyncBinding(): Binding {
+        return Binding(queueName, Binding.DestinationType.QUEUE, MessageProducer.SERVER_SYNC_EXCHANGE, "", null)
     }
 }

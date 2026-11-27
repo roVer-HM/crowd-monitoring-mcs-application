@@ -24,6 +24,8 @@ import kotlin.random.Random
 @Service
 class MessageProducer(
     private val rabbitTemplate: RabbitTemplate,
+    // Decides whether this server publishes the global density data to the clients (env GLOBAL_PUBLISHER_MODE)
+    private val publisherRole: PublisherRole,
     // Interval for publishing the LAMM with global density data in ms (env GLOBAL_PUBLISH_INTERVAL_MS, default 5000
     // as in the thesis). Must be the same expression as in @Scheduled of generateAndSendLamm()
     @Value("\${GLOBAL_PUBLISH_INTERVAL_MS:5000}") private val globalPublishIntervalMillis: Long
@@ -38,7 +40,10 @@ class MessageProducer(
     // Scalability analysis records: one line per message, fields separated by "; ", first field = record type.
     // The header line (record type prefixed with "#") names the fields. Timestamps: NtpClock, milliseconds.
     //  S-GLOBAL-TX: LAMM with global density data sent to all clients and servers (every GLOBAL_PUBLISH_INTERVAL_MS,
-    //  default 5 s); processedLocal = number of local density messages processed by this server since the previous S-GLOBAL-TX
+    //  default 5 s); processedLocal = number of local density messages processed by this server since its previous
+    //  S-GLOBAL-TX or S-SYNC-TX
+    //  S-SYNC-TX: same content, sent only to the other servers via rabbit-mq-exchange-server-sync (follower in
+    //  GLOBAL_PUBLISHER_MODE=leader, see PublisherRole)
     init {
         require(globalPublishIntervalMillis > 0) {
             "GLOBAL_PUBLISH_INTERVAL_MS must be > 0, is $globalPublishIntervalMillis"
@@ -49,6 +54,9 @@ class MessageProducer(
         loggerScalabilityAnalysis.info(
             "#S-GLOBAL-TX; serverId; messageId; tsGenerationStart; tsGenerationEnd; tsAfterSend; bytes; measurements; processedLocal"
         )
+        loggerScalabilityAnalysis.info(
+            "#S-SYNC-TX; serverId; messageId; tsGenerationStart; tsGenerationEnd; tsAfterSend; bytes; measurements; processedLocal"
+        )
     }
 
     // Checked (final)
@@ -56,6 +64,13 @@ class MessageProducer(
     @Scheduled(fixedRateString = "\${GLOBAL_PUBLISH_INTERVAL_MS:5000}")
     public fun generateAndSendLamm() {
         coroutineScopeGenerateAndSendLamm.launch {
+            // Determine the role before the timed section (one round trip to the broker): the leader (or every server
+            // in GLOBAL_PUBLISHER_MODE=all) publishes to the clients and servers, a follower only to the other servers
+            val publishToClients: Boolean = publisherRole.isGlobalPublisher()
+            val exchangeName: String =
+                if (publishToClients) GLOBAL_DENSITY_DATA_EXCHANGE else SERVER_SYNC_EXCHANGE
+            val recordType: String = if (publishToClients) "S-GLOBAL-TX" else "S-SYNC-TX"
+
             val timestampLammAndMessageGenerationsStarts: Long =
                 NtpClock.currentTimeMillis()
 
@@ -92,7 +107,7 @@ class MessageProducer(
                 NtpClock.currentTimeMillis()
 
             rabbitTemplate.convertAndSend(
-                "rabbit-mq-exchange-global-density-data", null,
+                exchangeName, null,
                 message
             )
 
@@ -100,7 +115,7 @@ class MessageProducer(
                 NtpClock.currentTimeMillis()
 
             loggerScalabilityAnalysis.info(
-                "S-GLOBAL-TX; " +
+                "$recordType; " +
                         "${ServerApplication.serverIdHexString}; " +
                         "${messageId.toHexString()}; " +
                         "$timestampLammAndMessageGenerationsStarts; " +
@@ -116,5 +131,13 @@ class MessageProducer(
 //                    "containing the LAMM: ${Json { prettyPrint = true }.parseToJsonElement(serializedLammToJson)}"
 //            )
         }
+    }
+
+    companion object {
+        // Exchange for the global density data (server -> clients and servers)
+        const val GLOBAL_DENSITY_DATA_EXCHANGE: String = "rabbit-mq-exchange-global-density-data"
+
+        // Exchange for synchronising the servers (followers -> other servers, GLOBAL_PUBLISHER_MODE=leader)
+        const val SERVER_SYNC_EXCHANGE: String = "rabbit-mq-exchange-server-sync"
     }
 }

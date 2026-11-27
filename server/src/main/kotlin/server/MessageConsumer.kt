@@ -31,7 +31,7 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
     // Scalability analysis records: one line per message, fields separated by "; ", first field = record type.
     // The header line (record type prefixed with "#") names the fields. Timestamps: NtpClock, milliseconds.
     //  S-LOCAL-RX:  local density data from a client (received = listener entry, start = processing coroutine starts)
-    //  S-GLOBAL-RX: global density data from another server
+    //  S-GLOBAL-RX: global density data from another server (S-GLOBAL-TX of the leader or S-SYNC-TX of a follower)
     init {
         loggerScalabilityAnalysis.info(
             "#S-LOCAL-RX; serverId; producerId; messageId; tsReceived; tsStart; tsEnd; bytes; measurements"
@@ -89,6 +89,8 @@ class MessageConsumer(private val globalDensityDataQueue: Queue) {
     // Checked (final)
     /**
      * Callback method which handles the global density data sent by other server instances for synchronization purpose.
+     * The queue is bound to rabbit-mq-exchange-global-density-data (leader, or every server in GLOBAL_PUBLISHER_MODE=all)
+     * and to rabbit-mq-exchange-server-sync (followers in GLOBAL_PUBLISHER_MODE=leader).
      * The name of the queue to register the listener is specified using Spring Expression Language. This is because
      * the queue name is not known at compile time, because it is constructed at runtime.
      * @param receivedMessage Message arrived at the queue containing global density data.

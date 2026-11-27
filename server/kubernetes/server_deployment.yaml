@@ -15,7 +15,7 @@ spec:
         app: crowd-monitoring-server
     spec:
       containers:
-        - image: ghcr.io/rover-hm/crowd-monitoring-server:0.5.0
+        - image: ghcr.io/rover-hm/crowd-monitoring-server:0.6.0
           name: crowd-monitoring-server
           # Define connection parameters to the RabbitMQ cluster as environment variables for the container
           # These are used within the containerized Spring Boot application to connect to the RabbitMQ cluster deployed to Kubernetes
@@ -32,3 +32,8 @@ spec:
             # Interval for publishing the global density data in ms (default 5000, as in the thesis)
             - name: GLOBAL_PUBLISH_INTERVAL_MS
               value: "5000"
+            # Which servers publish the global density data to the clients: leader (default) = only one server,
+            # elected via an exclusive queue in RabbitMQ, the others only synchronise with each other via
+            # rabbit-mq-exchange-server-sync; all = every server (behaviour of the thesis)
+            - name: GLOBAL_PUBLISHER_MODE
+              value: "leader"

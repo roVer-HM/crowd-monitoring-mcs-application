@@ -1,0 +1,15 @@
+# Source: https://www.rabbitmq.com/kubernetes/operator/using-topology-operator#exchanges-bindings
+# Fanout exchange for synchronising the server instances (GLOBAL_PUBLISHER_MODE=leader): only the leader publishes the
+# global density data to rabbit-mq-exchange-global-density-data (clients and servers), the other server instances
+# publish theirs only to this exchange. Every server binds its queue to both exchanges.
+apiVersion: rabbitmq.com/v1beta1
+kind: Exchange
+metadata:
+  name: rabbit-mq-exchange-server-sync
+spec:
+  name: rabbit-mq-exchange-server-sync
+  type: fanout
+  durable: true
+  autoDelete: false
+  rabbitmqClusterReference:
+    name: rabbit-mq-cluster

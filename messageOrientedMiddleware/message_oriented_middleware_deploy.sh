@@ -53,3 +53,6 @@ kubectl apply -f kubernetes/localDensityData/rabbit_mq_binding_local_density_dat
 
 # Create fanout exchange for transmitting global density data
 kubectl apply -f kubernetes/rabbit_mq_exchange_global_density_data_deployment.yaml
+
+# Create fanout exchange for synchronising the server instances (GLOBAL_PUBLISHER_MODE=leader)
+kubectl apply -f kubernetes/rabbit_mq_exchange_server_sync_deployment.yaml

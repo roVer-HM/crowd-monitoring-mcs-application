@@ -22,5 +22,8 @@ kubectl delete -f kubernetes/rabbit_mq_policy_max_length_deployment.yaml
 # Delete fanout exchange for transmitting global density data
 kubectl delete -f kubernetes/rabbit_mq_exchange_global_density_data_deployment.yaml
 
+# Delete fanout exchange for synchronising the server instances
+kubectl delete -f kubernetes/rabbit_mq_exchange_server_sync_deployment.yaml
+
 # Output timestamp of shutdown of RabbitMQ cluster
 date +%s
