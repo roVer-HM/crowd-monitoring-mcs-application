@@ -42,7 +42,11 @@ kubectl apply -f kubernetes/rabbit_mq_cluster_deployment.yaml
 # Source: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_wait/
 kubectl wait --for=condition=Ready pod --all
 
-# Create direct exchange with quorum queue for transmitting local density data and corresponding binding
+# Create policy limiting the length of all queues (classic queues, max. 100 messages)
+# Applied before the queues are declared, so that it is effective from the start
+kubectl apply -f kubernetes/rabbit_mq_policy_max_length_deployment.yaml
+
+# Create direct exchange with classic queue for transmitting local density data and corresponding binding
 kubectl apply -f kubernetes/localDensityData/rabbit_mq_exchange_local_density_data_deployment.yaml
 kubectl apply -f kubernetes/localDensityData/rabbit_mq_queue_local_density_data_deployment.yaml
 kubectl apply -f kubernetes/localDensityData/rabbit_mq_binding_local_density_data_deployment.yaml

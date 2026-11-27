@@ -5,7 +5,9 @@ metadata:
   name: rabbit-mq-queue-local-density-data
 spec:
   name: rabbit-mq-queue-local-density-data
-  type: quorum
+  # Classic queue; the maximum queue length is set centrally by the policy in
+  # kubernetes/rabbit_mq_policy_max_length_deployment.yaml
+  type: classic
   durable: true
   autoDelete: false
   rabbitmqClusterReference:

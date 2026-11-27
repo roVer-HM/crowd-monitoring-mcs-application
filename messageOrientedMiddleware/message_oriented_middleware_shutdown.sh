@@ -16,6 +16,9 @@ kubectl delete -f kubernetes/localDensityData/rabbit_mq_binding_local_density_da
 kubectl delete -f kubernetes/localDensityData/rabbit_mq_queue_local_density_data_deployment.yaml
 kubectl delete -f kubernetes/localDensityData/rabbit_mq_exchange_local_density_data_deployment.yaml
 
+# Delete policy limiting the queue length
+kubectl delete -f kubernetes/rabbit_mq_policy_max_length_deployment.yaml
+
 # Delete fanout exchange for transmitting global density data
 kubectl delete -f kubernetes/rabbit_mq_exchange_global_density_data_deployment.yaml
 

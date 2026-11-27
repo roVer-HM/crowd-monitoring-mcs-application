@@ -1,0 +1,18 @@
+# Source: https://www.rabbitmq.com/kubernetes/operator/using-topology-operator#queues-policies
+# Limits all queues of the crowd monitoring system (local density data queue as well as the
+# per-client/per-server global density data queues) to 100 messages. When the limit is reached,
+# the oldest messages are dropped (drop-head), so that the most recent density data is kept.
+apiVersion: rabbitmq.com/v1beta1
+kind: Policy
+metadata:
+  name: rabbit-mq-policy-max-length
+spec:
+  name: rabbit-mq-policy-max-length
+  pattern: "^rabbit-mq-queue-"
+  applyTo: queues
+  priority: 0
+  definition:
+    max-length: 100
+    overflow: drop-head
+  rabbitmqClusterReference:
+    name: rabbit-mq-cluster

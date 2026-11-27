@@ -24,10 +24,11 @@ class RabbitMQConfiguration {
     }
 
     // Building own queue for receiving global density data from other server instances for synchronization purposes
-    // Quorum queue enables replication of the queue across the nodes of the RabbitMQ cluster
+    // Classic queue; its maximum length (100 messages) is set centrally by the RabbitMQ policy
+    // rabbit-mq-policy-max-length (see messageOrientedMiddleware/kubernetes)
     @Bean
     fun globalDensityDataQueue(): Queue {
-        return QueueBuilder.durable(queueName).quorum().expires(5000).build()
+        return QueueBuilder.durable(queueName).expires(5000).build()
     }
 
     // Bind queue for receiving global density data updates to corresponding exchange

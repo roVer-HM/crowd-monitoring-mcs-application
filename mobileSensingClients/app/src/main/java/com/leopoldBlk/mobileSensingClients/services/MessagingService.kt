@@ -290,8 +290,9 @@ class MessagingService : LifecycleService() {
                     true,
                     false,
                     false,
+                    // Classic queue; its maximum length (100 messages) is set centrally by the
+                    // RabbitMQ policy rabbit-mq-policy-max-length
                     mapOf<String, Any>(
-                        Pair<String, String>("x-queue-type", "quorum"),
                         Pair<String, Int>("x-expires", 5000)
                     )
                 )
